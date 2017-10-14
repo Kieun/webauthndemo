@@ -25,6 +25,7 @@ import com.google.webauthn.gaedemo.exceptions.ResponseException;
 import com.google.webauthn.gaedemo.objects.AuthenticatorAssertionResponse;
 import com.google.webauthn.gaedemo.objects.PublicKeyCredential;
 import com.google.webauthn.gaedemo.server.AndroidSafetyNetServer;
+import com.google.webauthn.gaedemo.server.PackedServer;
 import com.google.webauthn.gaedemo.server.PublicKeyCredentialResponse;
 import com.google.webauthn.gaedemo.server.Server;
 import com.google.webauthn.gaedemo.server.U2fServer;
@@ -60,7 +61,7 @@ public class FinishGetAssertion extends HttpServlet {
 
     String credentialId = null;
     String type = null;
-    String assertionResponse = null;
+    JsonElement assertionJson = null;
 
     try {
       JsonObject json = new JsonParser().parse(data).getAsJsonObject();
@@ -72,9 +73,9 @@ public class FinishGetAssertion extends HttpServlet {
       if (typeJson != null) {
         type = typeJson.getAsString();
       }
-      JsonElement assertionJson = json.get("response");
-      if (assertionJson != null) {
-        assertionResponse = assertionJson.getAsString();
+      assertionJson = json.get("response");
+      if (assertionJson == null) {
+        throw new ServletException("Missing element 'response'");
       }
     } catch (IllegalStateException e) {
       throw new ServletException("Passed data not a json object");
@@ -86,13 +87,13 @@ public class FinishGetAssertion extends HttpServlet {
 
     AuthenticatorAssertionResponse assertion = null;
     try {
-      assertion = new AuthenticatorAssertionResponse(assertionResponse);
+      assertion = new AuthenticatorAssertionResponse(assertionJson);
     } catch (ResponseException e) {
       throw new ServletException(e.toString());
     }
 
     PublicKeyCredential cred = new PublicKeyCredential(credentialId, type,
-        BaseEncoding.base64().decode(credentialId), assertion);
+        BaseEncoding.base64Url().decode(credentialId), assertion);
 
     Credential savedCredential;
     try {
@@ -108,14 +109,13 @@ public class FinishGetAssertion extends HttpServlet {
       case ANDROIDSAFETYNET:
         AndroidSafetyNetServer.verifyAssertion(cred, currentUser, session, savedCredential);
         break;
+      case PACKED:
+        PackedServer.verifyAssertion(cred, currentUser, session, savedCredential);
+        break;
     }
-
-    Credential credential = new Credential(cred);
-    credential.save(currentUser);
 
     response.setContentType("application/json");
     PublicKeyCredentialResponse rsp = new PublicKeyCredentialResponse(true, "Successful assertion");
     response.getWriter().println(rsp.toJson());
   }
-
 }
