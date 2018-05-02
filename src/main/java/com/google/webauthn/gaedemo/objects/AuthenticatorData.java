@@ -193,9 +193,9 @@ public class AuthenticatorData {
     try {
       if (obj instanceof AuthenticatorData) {
         AuthenticatorData other = (AuthenticatorData) obj;
-        if (other.flags == other.flags) {
+        if (flags == other.flags) {
           if (Arrays.equals(other.rpIdHash, rpIdHash)) {
-            if (signCount == other.signCount) {
+            if (Integer.compareUnsigned(signCount, other.signCount) == 0) {
               if (attData == null && other.attData == null) {
                 return true;
               }

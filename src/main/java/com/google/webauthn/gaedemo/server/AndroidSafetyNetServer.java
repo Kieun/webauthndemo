@@ -58,7 +58,7 @@ public class AndroidSafetyNetServer extends Server {
     List<Credential> savedCreds = Credential.load(currentUser);
     for (Credential c : savedCreds) {
       if (c.getCredential().id.equals(cred.id)) {
-        throw new ServletException("Credential already registerd for this user");
+        throw new ServletException("Credential already registered for this user");
       }
     }
 
@@ -66,10 +66,6 @@ public class AndroidSafetyNetServer extends Server {
       verifySessionAndChallenge(attResponse, currentUser, session);
     } catch (ResponseException e1) {
       throw new ServletException("Unable to verify session and challenge data");
-    }
-
-    if (!attResponse.getClientData().getOrigin().equals(rpId)) {
-      throw new ServletException("Couldn't verify client data");
     }
 
     AndroidSafetyNetAttestationStatement attStmt =
@@ -84,8 +80,11 @@ public class AndroidSafetyNetServer extends Server {
     byte[] clientDataHash = Crypto.sha256Digest(attResponse.getClientDataBytes());
 
     try {
-      byte[] expectedNonce = Bytes.concat(
-          attResponse.getAttestationObject().getAuthenticatorData().encode(), clientDataHash);
+//		Nonce was changed from [authenticatorData, clientDataHash] to
+//    	sha256 [authenticatorData, clientDataHash]
+//		https://github.com/w3c/webauthn/pull/869
+      byte[] expectedNonce = Crypto.sha256Digest(Bytes.concat(
+          attResponse.getAttestationObject().getAuthenticatorData().encode(), clientDataHash));
       if (!Arrays.equals(expectedNonce, stmt.getNonce())) {
         throw new ServletException("Nonce does not match");
       }
@@ -141,7 +140,8 @@ public class AndroidSafetyNetServer extends Server {
       throw new ServletException("Failure while verifying authenticator data");
     }
 
-    if (assertionResponse.getAuthenticatorData().getSignCount() <= savedCredential.getSignCount()
+    if (Integer.compareUnsigned(assertionResponse.getAuthenticatorData().getSignCount(),
+        savedCredential.getSignCount()) <= 0
         && savedCredential.getSignCount() != 0) {
       throw new ServletException("Sign count invalid");
     }

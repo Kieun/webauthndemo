@@ -16,16 +16,15 @@
 package com.google.webauthn.gaedemo.objects;
 
 import static org.junit.Assert.assertArrayEquals;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import co.nstant.in.cbor.CborException;
+import com.google.api.client.util.Base64;
 import com.google.common.primitives.Bytes;
 import com.google.webauthn.gaedemo.exceptions.ResponseException;
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;
-import java.util.Base64;
 
 import org.junit.Test;
 
@@ -40,15 +39,15 @@ public class AuthenticatorDataTest {
     byte[] randomRpIdHash = new byte[32];
     random.nextBytes(randomRpIdHash);
     byte[] flags = {0};
-    int countInt = random.nextInt(Integer.MAX_VALUE);
-    byte[] count = ByteBuffer.allocate(4).putInt(countInt).array();
+    int countUnsignedInt = Integer.parseUnsignedInt("" + (random.nextLong() & 0xffffffffL));
+    byte[] count = ByteBuffer.allocate(4).putInt(countUnsignedInt).array();
     byte[] data = Bytes.concat(randomRpIdHash, flags, count);
 
     try {
       AuthenticatorData result = AuthenticatorData.decode(data);
 
       assertArrayEquals(randomRpIdHash, result.getRpIdHash());
-      assertEquals(countInt, result.getSignCount());
+      assertTrue(Integer.compareUnsigned(countUnsignedInt, result.getSignCount()) == 0);
     } catch (ResponseException e) {
       fail("Exception occurred");
     }
@@ -63,13 +62,13 @@ public class AuthenticatorDataTest {
     random.nextBytes(randomRpIdHash);
     byte[] flags = {1 << 6};
     AttestationData attData = new AttestationData();
-    EccKey eccKey = new EccKey(Base64.getDecoder().decode("NNxD3LBXs6iF1jiBGZ4Qqhd997NKcmDLJyyILL49V90"),
-        Base64.getDecoder().decode("MJtVZlRRfTscLy06DSHLBfA8O03pZJ1K01DbCILr0rA"));
+    EccKey eccKey = new EccKey(Base64.decodeBase64("NNxD3LBXs6iF1jiBGZ4Qqhd997NKcmDLJyyILL49V90"),
+        Base64.decodeBase64("MJtVZlRRfTscLy06DSHLBfA8O03pZJ1K01DbCILr0rA"));
     random.nextBytes(attData.aaguid);
     eccKey.alg = Algorithm.ES256;
     attData.publicKey = eccKey;
-    int countInt = random.nextInt(Integer.MAX_VALUE);
-    byte[] count = ByteBuffer.allocate(4).putInt(countInt).array();
+    int countUnsignedInt = Integer.parseUnsignedInt("" + (random.nextLong() & 0xffffffffL));
+    byte[] count = ByteBuffer.allocate(4).putInt(countUnsignedInt).array();
     byte[] data = null;
     try {
       data = Bytes.concat(randomRpIdHash, flags, count, attData.encode());
@@ -81,7 +80,7 @@ public class AuthenticatorDataTest {
       AuthenticatorData result = AuthenticatorData.decode(data);
       assertTrue(result.getAttData().getPublicKey().equals(eccKey));
       assertArrayEquals(randomRpIdHash, result.getRpIdHash());
-      assertEquals(countInt, result.getSignCount());
+      assertTrue(Integer.compareUnsigned(countUnsignedInt, result.getSignCount()) == 0);
     } catch (ResponseException e) {
       fail("Exception occurred");
     }
